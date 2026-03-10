@@ -139,26 +139,34 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 /* Cards in hand */
 .hcard{
   background:var(--panel2);border:1px solid var(--border2);
-  display:flex;align-items:center;gap:.6vw;padding:.7vh .6vw;
+  display:flex;flex-direction:column;
   cursor:pointer;transition:all .14s;position:relative;
-  flex:1;min-height:0;
+  flex:1;min-height:0;overflow:hidden;
 }
-.hcard:hover:not(.na){border-color:var(--gold);transform:translateX(4px);background:rgba(201,162,39,.055)}
+.hcard:hover:not(.na){border-color:var(--gold);transform:scale(1.025);z-index:2;background:rgba(201,162,39,.055)}
 .hcard.sel{
   border-color:var(--gold2);
-  box-shadow:0 0 14px rgba(237,200,74,.32),inset 0 0 8px rgba(237,200,74,.05);
+  box-shadow:0 0 16px rgba(237,200,74,.4),inset 0 0 10px rgba(237,200,74,.07);
   background:rgba(237,200,74,.07);
 }
-.hcard.na{opacity:.3;cursor:not-allowed}
+.hcard.na{opacity:.35;cursor:not-allowed}
 .hcard.na:hover{transform:none;border-color:var(--border2);background:var(--panel2)}
-.hci{width:5vw;height:2.5vw;object-fit:contain;flex-shrink:0;image-rendering:pixelated;aspect-ratio:2/1}
-.hct{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:.2vh}
-.hcname{font-family:'Cinzel',serif;font-size:clamp(.65rem,.95vw,1.15rem);letter-spacing:.04em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hcdesc{font-size:clamp(.58rem,.8vw,1rem);color:var(--text2);line-height:1.3}
+.hci{
+  width:100%;flex:1;min-height:0;
+  object-fit:cover;object-position:center;
+  image-rendering:pixelated;display:block;
+}
+.hcfooter{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.3vh .5vw;
+  background:rgba(0,0,0,.45);border-top:1px solid var(--border2);
+  flex-shrink:0;
+}
+.hcname{font-family:'Cinzel',serif;font-size:clamp(.6rem,.85vw,1rem);letter-spacing:.03em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hccost{
   background:var(--blue);color:#cde;
-  font-family:'Cinzel',serif;font-size:clamp(.65rem,.9vw,1.1rem);font-weight:700;
-  width:clamp(18px,1.6vw,26px);height:clamp(18px,1.6vw,26px);border-radius:50%;
+  font-family:'Cinzel',serif;font-size:clamp(.6rem,.85vw,1rem);font-weight:700;
+  width:clamp(16px,1.5vw,24px);height:clamp(16px,1.5vw,24px);border-radius:50%;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 
@@ -217,7 +225,39 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
   font-family:'Cinzel',serif;font-weight:700;
 }
 
-/* ─── STATUS BAR ─────────────────────────────────────────────── */
+/* ─── TOOLTIP ────────────────────────────────────────────────── */
+#tooltip{
+  position:fixed;z-index:999;pointer-events:none;
+  background:rgba(7,9,15,.96);
+  border:1px solid var(--gold);
+  padding:.7vh .9vw;
+  max-width:220px;
+  opacity:0;transition:opacity .12s;
+  box-shadow:0 4px 24px rgba(0,0,0,.7),0 0 12px rgba(201,162,39,.15);
+}
+#tooltip.show{opacity:1}
+#tooltip.show{opacity:1}
+#tt-name{
+  font-family:'Cinzel',serif;font-size:clamp(.7rem,.9vw,1.05rem);
+  color:var(--gold2);margin-bottom:.4vh;
+}
+#tt-img{
+  width:100%;aspect-ratio:2/1;object-fit:contain;
+  image-rendering:pixelated;margin-bottom:.5vh;
+  display:block;
+}
+#tt-desc{font-size:clamp(.6rem,.78vw,.92rem);color:var(--text);line-height:1.5}
+#tt-stats{
+  display:flex;gap:.6vw;margin-top:.5vh;
+  font-family:'Cinzel',serif;font-size:clamp(.58rem,.75vw,.88rem);
+}
+.tt-stat{
+  display:flex;align-items:center;gap:3px;
+  background:rgba(255,255,255,.05);border:1px solid var(--border2);
+  padding:2px 6px;
+}
+.tt-stat span{color:var(--text2)}
+.tt-stat b{color:var(--text)}
 .statusbar{
   grid-column:1/-1;
   display:flex;align-items:center;justify-content:center;
@@ -245,6 +285,14 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 </style>
 </head>
 <body>
+
+<!-- ═══ TOOLTIP ═══ -->
+<div id="tooltip">
+  <div id="tt-name"></div>
+  <img id="tt-img" src="" alt="">
+  <div id="tt-desc"></div>
+  <div id="tt-stats"></div>
+</div>
 
 <!-- ═══ TITLE SCREEN ═══ -->
 <div id="screen-title">
@@ -321,7 +369,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 // ════════════════════════════════════════════════════
 const DEFS = {
   AtkCard1:{ name:'Guy',       mana:2, hp:2,   atk:2, effect:'basic',   desc:'2hp · 2atk — Attacks ahead' },
-  AtkCard2:{ name:'Baby',      mana:1, hp:1,   atk:0, effect:'basic',   desc:'1hp - Fodder' },
+  AtkCard2:{ name:'Baby',      mana:1, hp:1,   atk:1, effect:'basic',   desc:'1hp · 1atk — Attacks ahead' },
   AtkCard3:{ name:'Mage',      mana:3, hp:2,   atk:1, effect:'arch',    desc:'2hp · 1atk — Bypasses units, hits player' },
   AtkCard4:{ name:'Laser',     mana:3, hp:2,   atk:2, effect:'pierce',  desc:'2hp · 2atk — Pierce row, -1dmg per unit hit' },
   DefCard1:{ name:'Wall',      mana:2, hp:999, atk:0, effect:'wall',    desc:'∞hp — Absorbs all hits; vanishes after 1 round' },
@@ -762,14 +810,15 @@ function renderHands(){
       const div=document.createElement('div');
       div.className='hcard'+(selected?' sel':'')+((!active||cantAfford)?' na':'');
       if(active&&!cantAfford) div.onclick=()=>selectCard(pid,i);
+      div.addEventListener('mouseenter', e=>showTooltip(e, ct, null));
+      div.addEventListener('mouseleave', hideTooltip);
       div.innerHTML=`
         <img class="hci" src="assets/sprites/${ct}.png" alt="${d.name}"
-             onerror="this.style.opacity='0.3'">
-        <div class="hct">
+             onerror="this.style.opacity='0.15'">
+        <div class="hcfooter">
           <div class="hcname">${d.name}</div>
-          <div class="hcdesc">${d.desc}</div>
-        </div>
-        <div class="hccost">${d.mana}</div>`;
+          <div class="hccost">${d.mana}</div>
+        </div>`;
       hEl.appendChild(div);
     });
   }
@@ -802,8 +851,13 @@ function renderBoard(){
               <div class="uhptxt">${hpTxt}</div>
               ${!isWall?`<div class="uhpbar"><div class="${hpCls}" style="width:${hpPct}%"></div></div>`:''}
             </div>`;
+          cell.addEventListener('mouseenter', e=>showTooltip(e, u.type, u));
+          cell.addEventListener('mouseleave', hideTooltip);
         } else {
           cell.innerHTML='';
+          cell.removeEventListener('mouseenter', hideTooltip);
+          cell.removeEventListener('mouseleave', hideTooltip);
+          hideTooltip();
         }
       }
     }
@@ -862,6 +916,56 @@ function flashPop(pid,row,col){
 function setStatus(msg){ const e=document.getElementById('status'); if(e) e.textContent=msg; }
 function disableEnd(v){ const e=document.getElementById('btn-end'); if(e) e.disabled=v; }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ════════════════════════════════════════════════════
+//  TOOLTIP
+// ════════════════════════════════════════════════════
+const TT = document.getElementById('tooltip');
+let ttTimeout = null;
+
+function showTooltip(e, type, liveUnit){
+  clearTimeout(ttTimeout);
+  const d = DEFS[type];
+  document.getElementById('tt-name').textContent = d.name;
+  const img = document.getElementById('tt-img');
+  img.src = `assets/sprites/${type}.png`;
+  img.onerror = ()=>{ img.style.display='none'; };
+  img.onload  = ()=>{ img.style.display='block'; };
+  document.getElementById('tt-desc').textContent = d.desc;
+
+  // Stats row
+  const stats = document.getElementById('tt-stats');
+  stats.innerHTML = '';
+  const hpVal = liveUnit ? `${liveUnit.hp}/${liveUnit.mhp}` : (d.hp >= 999 ? '∞' : d.hp);
+  const atkVal = liveUnit ? effAtk(liveUnit) : d.atk;
+  stats.innerHTML = `
+    <div class="tt-stat"><span>❤</span><b>${hpVal}</b></div>
+    ${d.atk > 0 || (liveUnit && liveUnit.batk > 0) ? `<div class="tt-stat"><span>⚔</span><b>${atkVal}</b></div>` : ''}
+    <div class="tt-stat"><span>💧</span><b>${d.mana}</b></div>`;
+
+  positionTooltip(e);
+  ttTimeout = setTimeout(()=>TT.classList.add('show'), 320);
+}
+
+function hideTooltip(){
+  clearTimeout(ttTimeout);
+  TT.classList.remove('show');
+}
+
+function positionTooltip(e){
+  const pad = 14;
+  const tw = 220, th = 160;
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  if(x + tw > window.innerWidth)  x = e.clientX - tw - pad;
+  if(y + th > window.innerHeight) y = e.clientY - th - pad;
+  TT.style.left = x + 'px';
+  TT.style.top  = y + 'px';
+}
+
+document.addEventListener('mousemove', e=>{
+  if(TT.classList.contains('show')) positionTooltip(e);
+});
 
 // ════════════════════════════════════════════════════
 //  BOOT
