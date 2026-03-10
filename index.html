@@ -320,11 +320,11 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 //  CARD DEFINITIONS
 // ════════════════════════════════════════════════════
 const DEFS = {
-  AtkCard1:{ name:'Guy',       mana:2, hp:2,   atk:1, effect:'basic',   desc:'2hp · 1atk — Attacks ahead' },
+  AtkCard1:{ name:'Guy',       mana:2, hp:2,   atk:2, effect:'basic',   desc:'2hp · 2atk — Attacks ahead' },
   AtkCard2:{ name:'Baby',      mana:1, hp:1,   atk:1, effect:'basic',   desc:'1hp · 1atk — Attacks ahead' },
-  AtkCard3:{ name:'Mage',      mana:3, hp:2,   atk:1, effect:'arch',    desc:'2hp · 1atk — Bypasses units' },
-  AtkCard4:{ name:'Laser',     mana:3, hp:2,   atk:2, effect:'pierce',  desc:'2hp · 2atk — Pierce row' },
-  DefCard1:{ name:'Wall',      mana:2, hp:999, atk:0, effect:'wall',    desc:'∞hp — Vanishes after 1 round' },
+  AtkCard3:{ name:'Mage',      mana:3, hp:2,   atk:1, effect:'arch',    desc:'2hp · 1atk — Bypasses units, hits player' },
+  AtkCard4:{ name:'Laser',     mana:3, hp:2,   atk:2, effect:'pierce',  desc:'2hp · 2atk — Pierce row, -1dmg per unit hit' },
+  DefCard1:{ name:'Wall',      mana:2, hp:999, atk:0, effect:'wall',    desc:'∞hp — Absorbs all hits; vanishes after 1 round' },
   DefCard2:{ name:'Tough Guy', mana:2, hp:4,   atk:1, effect:'basic',   desc:'4hp · 1atk — Attacks ahead' },
   DefCard3:{ name:'Bomber',    mana:2, hp:2,   atk:0, effect:'explode', desc:'2hp — Explodes on death, clears entire row' },
   SupCard1:{ name:'Priest',    mana:2, hp:2,   atk:0, effect:'heal',    desc:'2hp — Restores 2hp to your player each turn' },
@@ -383,9 +383,10 @@ function mkState(){
     // P2: col0=front(closer to divider), col1=back
     board:[ [[null,null],[null,null],[null,null]], [[null,null],[null,null],[null,null]] ],
     pool:[],
-    sel:null, // selected hand index
+    sel:null,
     winner:null,
-    firstTurn: true, // P1's opening turn — skip board resolution, just hand off to P2
+    roundStarter: 0,    // who opens each round; flips after every resolve
+    placementPhase: 0,  // 0 = first placer's turn, 1 = second placer's turn
   };
 }
 
@@ -580,29 +581,42 @@ async function actUnit(u, pid, row, col){
 // ════════════════════════════════════════════════════
 //  TURN MANAGEMENT
 // ════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════
+//  TURN MANAGEMENT
+// ════════════════════════════════════════════════════
 function endTurn(){
   if(resolving) return;
   const p = G.players[G.cp];
-  const need = 4-p.hand.length+(p.bonus||0);
-  if(need>0) p.hand.push(...drawN(need,G.pool));
-  p.bonus = 0;
   p.mp = p.mmp;
+  p.bonus = 0;
   G.sel = null;
   renderAll();
-  if(G.firstTurn){
-    G.firstTurn = false;
-    setStatus("Player 2's turn — place cards, then click End Turn");
+
+  if(G.placementPhase === 0){
+    // First placer done — hand off to second placer, no resolve yet
+    G.placementPhase = 1;
     switchPlayer();
   } else {
+    // Both players have placed — resolve then start next round
+    G.placementPhase = 0;
+    G.roundStarter = 1 - G.roundStarter; // alternate who opens next round
     resolveBoard();
   }
 }
 
 function switchPlayer(){
-  G.cp = 1-G.cp;
+  // If placementPhase is 1 we're handing to the second placer (opposite of roundStarter)
+  // If placementPhase is 0 we just came out of resolve, go to next roundStarter
+  G.cp = G.placementPhase === 1 ? 1 - G.roundStarter : G.roundStarter;
   G.sel = null;
+  // Replenish incoming player's hand — after resolve dead cards are back in pool
+  const p = G.players[G.cp];
+  const need = 4 - p.hand.length + (p.bonus||0);
+  if(need > 0) p.hand.push(...drawN(need, G.pool));
+  p.bonus = 0;
   const pn = G.cp===0?'Player 1':'Player 2';
-  setStatus(`${pn}'s turn — place cards, then click End Turn`);
+  const phase = G.placementPhase === 1 ? '(2nd placement)' : '(1st placement)';
+  setStatus(`${pn}'s turn ${phase} — place cards, then click End Turn`);
   renderAll();
   disableEnd(false);
 }
@@ -676,7 +690,7 @@ function startGame(){
   buildBoard();
   renderAll();
   playBgm();
-  setStatus("Player 1's turn — place cards, then click End Turn");
+  setStatus("Player 1's turn (1st placement) — place cards, then click End Turn");
   disableEnd(false);
 }
 
@@ -799,11 +813,12 @@ function renderBoard(){
 function renderBadge(){
   if(!G) return;
   const b=document.getElementById('turn-badge');
+  const phase = G.placementPhase === 0 ? ' · 1ST' : ' · 2ND';
   if(G.cp===0){
-    b.textContent="PLAYER 1'S TURN";
+    b.textContent=`PLAYER 1'S TURN${phase}`;
     b.style.color='var(--p1col)'; b.style.borderColor='var(--p1col)';
   } else {
-    b.textContent="PLAYER 2'S TURN";
+    b.textContent=`PLAYER 2'S TURN${phase}`;
     b.style.color='var(--p2col)'; b.style.borderColor='var(--p2col)';
   }
 }
