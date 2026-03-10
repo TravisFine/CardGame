@@ -385,6 +385,7 @@ function mkState(){
     pool:[],
     sel:null, // selected hand index
     winner:null,
+    firstTurn: true, // P1's opening turn — skip board resolution, just hand off to P2
   };
 }
 
@@ -582,14 +583,19 @@ async function actUnit(u, pid, row, col){
 function endTurn(){
   if(resolving) return;
   const p = G.players[G.cp];
-  // Replenish current player BEFORE resolve
   const need = 4-p.hand.length+(p.bonus||0);
   if(need>0) p.hand.push(...drawN(need,G.pool));
   p.bonus = 0;
   p.mp = p.mmp;
   G.sel = null;
   renderAll();
-  resolveBoard();
+  if(G.firstTurn){
+    G.firstTurn = false;
+    setStatus("Player 2's turn — place cards, then click End Turn");
+    switchPlayer();
+  } else {
+    resolveBoard();
+  }
 }
 
 function switchPlayer(){
