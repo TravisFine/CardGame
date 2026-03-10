@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Battle</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@400;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #07090f;
+  --panel:    #0c1020;
+  --panel2:   #111828;
+  --border:   #1a2440;
+  --border2:  #253260;
+  --gold:     #c9a227;
+  --gold2:    #edc84a;
+  --red:      #c0392b;
+  --blue:     #1455a0;
+  --text:     #d0be98;
+  --text2:    rgba(208,190,152,0.55);
+  --p1col:    #4fc3f7;
+  --p2col:    #ff7043;
+  --glow-p1:  rgba(79,195,247,0.22);
+  --glow-p2:  rgba(255,112,67,0.22);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Crimson Text',Georgia,serif;user-select:none}
+
+/* ─── TITLE ─────────────────────────────────────────────────── */
+#screen-title{
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 38%,#131d3d 0%,#040610 65%);
+  z-index:300;
+}
+#title-img{
+  max-width:min(520px,82vw);max-height:38vh;object-fit:contain;
+  filter:drop-shadow(0 0 45px rgba(201,162,39,.55));
+  margin-bottom:52px;
+  animation:floatY 3.2s ease-in-out infinite;
+}
+@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+/* ─── WIN ────────────────────────────────────────────────────── */
+#screen-win{
+  position:fixed;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 38%,#131d3d 0%,#040610 65%);
+  z-index:300;
+}
+#screen-win.show{display:flex}
+#win-heading{
+  font-family:'Cinzel Decorative',serif;font-size:clamp(2.4rem,5.5vw,4.5rem);font-weight:900;
+  margin-bottom:10px;text-shadow:0 0 50px currentColor;
+  animation:pulseGlow 1.6s ease-in-out infinite;
+}
+#win-sub{font-family:'Cinzel',serif;font-size:.95rem;letter-spacing:.3em;color:var(--text2);margin-bottom:44px}
+@keyframes pulseGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35) drop-shadow(0 0 22px currentColor)}}
+
+/* ─── SHARED BUTTON ──────────────────────────────────────────── */
+.btn{
+  font-family:'Cinzel',serif;font-size:1rem;font-weight:700;letter-spacing:.28em;
+  text-transform:uppercase;color:#06080f;
+  background:linear-gradient(135deg,#c9a227 0%,#edd050 50%,#c9a227 100%);
+  border:none;padding:13px 42px;cursor:pointer;
+  clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px);
+  transition:all .18s;
+}
+.btn:hover{filter:brightness(1.22) drop-shadow(0 0 14px rgba(201,162,39,.65));transform:scale(1.05)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+
+/* ─── GAME SCREEN ────────────────────────────────────────────── */
+#screen-game{
+  display:none;width:100vw;height:100vh;
+  grid-template-rows:50px 1fr 22px;
+  grid-template-columns:22vw 1fr 22vw;
+}
+#screen-game.show{display:grid}
+
+/* ─── TOP BAR ────────────────────────────────────────────────── */
+.top-bar{
+  grid-column:1/-1;
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  background:var(--panel);border-bottom:1px solid var(--border);
+  padding:0 12px;
+}
+#turn-badge{
+  font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.22em;
+  color:var(--gold);background:var(--panel2);border:1px solid var(--gold);
+  padding:6px 22px;
+  clip-path:polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px);
+  transition:color .3s,border-color .3s;
+}
+#btn-end{
+  font-family:'Cinzel',serif;font-size:.7rem;font-weight:700;letter-spacing:.14em;
+  color:#07090f;background:linear-gradient(135deg,var(--gold),var(--gold2));
+  border:none;padding:7px 17px;cursor:pointer;
+  clip-path:polygon(5px 0,calc(100% - 5px) 0,100% 5px,100% calc(100% - 5px),calc(100% - 5px) 100%,5px 100%,0 calc(100% - 5px),0 5px);
+  transition:all .15s;
+}
+#btn-end:hover:not(:disabled){filter:brightness(1.18);transform:scale(1.04)}
+#btn-end:disabled{opacity:.28;cursor:not-allowed}
+
+/* ─── SIDE PANELS ────────────────────────────────────────────── */
+.side{
+  display:flex;flex-direction:column;gap:1vh;
+  padding:1vw;background:var(--panel);
+  border-right:1px solid var(--border);overflow:hidden;
+}
+.side.right{border-right:none;border-left:1px solid var(--border)}
+
+.stat-box{
+  background:var(--panel2);border:1px solid var(--border2);
+  padding:1vw;position:relative;flex-shrink:0;
+}
+.stat-box::after{
+  content:'';position:absolute;inset:3px;
+  border:1px solid rgba(201,162,39,.09);pointer-events:none;
+}
+.player-lbl{
+  font-family:'Cinzel',serif;font-size:clamp(.7rem,1vw,1.1rem);letter-spacing:.22em;
+  color:var(--gold);text-align:center;margin-bottom:.6vh;
+}
+.srow{display:flex;align-items:center;gap:.5vw;margin-bottom:.4vh}
+.sicon{font-size:clamp(.85rem,1.1vw,1.3rem);width:1.2vw;text-align:center}
+.track{flex:1;height:clamp(6px,0.7vh,10px);background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.07);overflow:hidden}
+.fill{height:100%;transition:width .38s ease}
+.fill-hp{background:linear-gradient(90deg,#b71c1c,#ef5350)}
+.fill-mp{background:linear-gradient(90deg,#0d47a1,#42a5f5)}
+.sval{font-size:clamp(.7rem,.9vw,1.1rem);min-width:3vw;text-align:right;color:var(--text)}
+
+.hand-lbl{
+  font-family:'Cinzel',serif;font-size:clamp(.58rem,.8vw,1rem);letter-spacing:.22em;
+  color:var(--text2);text-align:center;padding:.2vh 0;
+}
+.hand{display:flex;flex-direction:column;gap:.8vh;flex:1;overflow:hidden}
+
+/* Cards in hand */
+.hcard{
+  background:var(--panel2);border:1px solid var(--border2);
+  display:flex;align-items:center;gap:.6vw;padding:.7vh .6vw;
+  cursor:pointer;transition:all .14s;position:relative;
+  flex:1;min-height:0;
+}
+.hcard:hover:not(.na){border-color:var(--gold);transform:translateX(4px);background:rgba(201,162,39,.055)}
+.hcard.sel{
+  border-color:var(--gold2);
+  box-shadow:0 0 14px rgba(237,200,74,.32),inset 0 0 8px rgba(237,200,74,.05);
+  background:rgba(237,200,74,.07);
+}
+.hcard.na{opacity:.3;cursor:not-allowed}
+.hcard.na:hover{transform:none;border-color:var(--border2);background:var(--panel2)}
+.hci{width:5vw;height:2.5vw;object-fit:contain;flex-shrink:0;image-rendering:pixelated;aspect-ratio:2/1}
+.hct{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:.2vh}
+.hcname{font-family:'Cinzel',serif;font-size:clamp(.65rem,.95vw,1.15rem);letter-spacing:.04em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hcdesc{font-size:clamp(.58rem,.8vw,1rem);color:var(--text2);line-height:1.3}
+.hccost{
+  background:var(--blue);color:#cde;
+  font-family:'Cinzel',serif;font-size:clamp(.65rem,.9vw,1.1rem);font-weight:700;
+  width:clamp(18px,1.6vw,26px);height:clamp(18px,1.6vw,26px);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+
+/* ─── BOARD ──────────────────────────────────────────────────── */
+.board-wrap{
+  display:grid;grid-template-rows:repeat(3,1fr);
+  gap:5px;padding:7px;position:relative;
+}
+.brow{display:grid;grid-template-columns:1fr 1fr 3px 1fr 1fr;gap:4px}
+.bdiv{
+  background:linear-gradient(to bottom,transparent 5%,var(--gold) 50%,transparent 95%);
+  opacity:.35;border-radius:2px;align-self:stretch;
+}
+
+.cell{
+  background:var(--panel2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .14s;position:relative;overflow:hidden;
+  cursor:default;
+}
+.cell::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(255,255,255,.008) 10px,rgba(255,255,255,.008) 20px);
+}
+.cell.p1s{border-color:rgba(79,195,247,.12)}
+.cell.p2s{border-color:rgba(255,112,67,.12)}
+.cell.can{cursor:pointer;border-color:rgba(201,162,39,.35)}
+.cell.can:hover{border-color:var(--gold);background:rgba(201,162,39,.08);box-shadow:inset 0 0 14px rgba(201,162,39,.07)}
+
+/* Unit on board */
+.unit{
+  width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:4px;position:relative;z-index:1;
+}
+.uimg{
+  width:min(90%,100%);height:auto;max-height:55%;
+  aspect-ratio:2/1;object-fit:contain;image-rendering:pixelated;
+}
+.uhpbar{
+  position:absolute;bottom:3px;left:4px;right:4px;height:4px;
+  background:rgba(0,0,0,.55);border:1px solid rgba(0,0,0,.4);
+}
+.uhpfill{height:100%;transition:width .28s;background:#43a047}
+.uhpfill.mid{background:#fb8c00}
+.uhpfill.low{background:#e53935}
+.uhptxt{
+  position:absolute;top:2px;right:3px;
+  font-size:clamp(.58rem,.85vw,1.1rem);color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9);
+  font-family:'Cinzel',serif;font-weight:700;
+}
+.ubadge{
+  position:absolute;top:2px;left:2px;
+  font-size:clamp(.6rem,.9vw,1.1rem);background:rgba(237,200,74,.88);
+  color:#000;padding:clamp(1px,.2vh,3px) clamp(2px,.3vw,5px);border-radius:2px;
+  font-family:'Cinzel',serif;font-weight:700;
+}
+
+/* ─── STATUS BAR ─────────────────────────────────────────────── */
+.statusbar{
+  grid-column:1/-1;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;color:var(--text2);
+  border-top:1px solid var(--border);background:var(--panel);
+  padding:0 16px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+}
+
+/* ─── ANIMATIONS ─────────────────────────────────────────────── */
+@keyframes flashDmg{0%{filter:brightness(1)}20%{filter:brightness(4) saturate(0)}100%{filter:brightness(1)}}
+@keyframes flashAct{0%{box-shadow:inset 0 0 0 2px #fff,inset 0 0 18px rgba(255,255,255,.55);filter:brightness(1.7)}100%{box-shadow:none;filter:brightness(1)}}
+@keyframes placePop{0%{transform:scale(.45);opacity:0}65%{transform:scale(1.1);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes explodeFlash{0%{background:rgba(255,90,0,.5);box-shadow:inset 0 0 20px rgba(255,90,0,.7)}100%{background:var(--panel2);box-shadow:none}}
+@keyframes hpShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+.fdmg{animation:flashDmg .38s ease-out}
+.fact{animation:flashAct .45s ease-out}
+.fpop .unit{animation:placePop .28s ease-out}
+.fxplode{animation:explodeFlash .55s ease-out}
+.fhp{animation:hpShake .3s ease-out}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:var(--panel)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- ═══ TITLE SCREEN ═══ -->
+<div id="screen-title">
+  <img id="title-img" src="assets/sprites/title.png" alt="Card Battle"
+       onerror="this.style.opacity='.0'">
+  <button class="btn" onclick="startGame()">BEGIN</button>
+</div>
+
+<!-- ═══ WIN SCREEN ═══ -->
+<div id="screen-win">
+  <div id="win-heading"></div>
+  <div id="win-sub"></div>
+  <button class="btn" onclick="backToTitle()">PLAY AGAIN</button>
+</div>
+
+<!-- ═══ GAME SCREEN ═══ -->
+<div id="screen-game">
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div id="turn-badge">PLAYER 1'S TURN</div>
+    <button id="btn-end" onclick="endTurn()">END TURN</button>
+  </div>
+
+  <!-- P1 side -->
+  <div class="side" id="side-p1">
+    <div class="stat-box">
+      <div class="player-lbl">⚔ PLAYER 1</div>
+      <div class="srow">
+        <span class="sicon">❤</span>
+        <div class="track"><div class="fill fill-hp" id="p1-hp-bar"></div></div>
+        <span class="sval" id="p1-hp-val">10/10</span>
+      </div>
+      <div class="srow">
+        <span class="sicon">💧</span>
+        <div class="track"><div class="fill fill-mp" id="p1-mp-bar"></div></div>
+        <span class="sval" id="p1-mp-val">5/5</span>
+      </div>
+    </div>
+    <div class="hand-lbl">HAND</div>
+    <div class="hand" id="hand-p1"></div>
+  </div>
+
+  <!-- Board -->
+  <div class="board-wrap" id="board-wrap">
+    <!-- built by JS -->
+  </div>
+
+  <!-- P2 side -->
+  <div class="side right" id="side-p2">
+    <div class="stat-box">
+      <div class="player-lbl">⚔ PLAYER 2</div>
+      <div class="srow">
+        <span class="sicon">❤</span>
+        <div class="track"><div class="fill fill-hp" id="p2-hp-bar"></div></div>
+        <span class="sval" id="p2-hp-val">10/10</span>
+      </div>
+      <div class="srow">
+        <span class="sicon">💧</span>
+        <div class="track"><div class="fill fill-mp" id="p2-mp-bar"></div></div>
+        <span class="sval" id="p2-mp-val">5/5</span>
+      </div>
+    </div>
+    <div class="hand-lbl">HAND</div>
+    <div class="hand" id="hand-p2"></div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar" id="status">Welcome to Card Battle</div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+//  CARD DEFINITIONS
+// ════════════════════════════════════════════════════
+const DEFS = {
+  AtkCard1:{ name:'Guy',       mana:2, hp:2,   atk:2, effect:'basic',   desc:'2hp · 2atk — Attacks ahead' },
+  AtkCard2:{ name:'Baby',      mana:1, hp:1,   atk:1, effect:'basic',   desc:'1hp · 1atk — Attacks ahead' },
+  AtkCard3:{ name:'Mage',      mana:3, hp:2,   atk:1, effect:'arch',    desc:'2hp · 1atk — Bypasses units, hits player' },
+  AtkCard4:{ name:'Laser',     mana:3, hp:2,   atk:2, effect:'pierce',  desc:'2hp · 2atk — Pierce row, -1dmg per unit hit' },
+  DefCard1:{ name:'Wall',      mana:2, hp:999, atk:0, effect:'wall',    desc:'∞hp — Absorbs all hits; vanishes after 1 round' },
+  DefCard2:{ name:'Tough Guy', mana:2, hp:4,   atk:1, effect:'basic',   desc:'4hp · 1atk — Attacks ahead' },
+  DefCard3:{ name:'Bomber',    mana:2, hp:2,   atk:0, effect:'explode', desc:'2hp — Explodes on death, clears entire row' },
+  SupCard1:{ name:'Priest',    mana:2, hp:2,   atk:0, effect:'heal',    desc:'2hp — Restores 2hp to your player each turn' },
+  SupCard2:{ name:'Coach',     mana:3, hp:2,   atk:0, effect:'boost',   desc:'2hp — All your units gain +1 attack' },
+  SupCard3:{ name:'Malice',    mana:2, hp:1,   atk:0, effect:'curse',   desc:'1hp — All enemy units suffer -1 attack' },
+};
+
+const POOL_TEMPLATE = [
+  'AtkCard1','AtkCard1','AtkCard1','AtkCard1',
+  'AtkCard2','AtkCard2',
+  'AtkCard3',
+  'AtkCard4',
+  'DefCard1',
+  'DefCard2',
+  'DefCard3','DefCard3',
+  'SupCard1',
+  'SupCard2',
+  'SupCard3',
+];
+
+// ════════════════════════════════════════════════════
+//  AUDIO
+// ════════════════════════════════════════════════════
+let bgm = null;
+const SFX = {};
+
+function initAudio(){
+  bgm = new Audio('assets/audio/m_main.mp3');
+  bgm.loop = true; bgm.volume = 0.45;
+  ['win','lose','hit_player','hit_unit','lob','place','select'].forEach(k=>{
+    SFX[k] = new Audio(`assets/audio/${k}.mp3`);
+    SFX[k].volume = 0.7;
+  });
+}
+function playSfx(name){
+  try{ const s=SFX[name]; if(!s)return; s.currentTime=0; s.play().catch(()=>{}); }catch(e){}
+}
+function playBgm(){ bgm && bgm.play().catch(()=>{}); }
+function stopBgm(){ bgm && bgm.pause(); bgm && (bgm.currentTime=0); }
+
+// ════════════════════════════════════════════════════
+//  GAME STATE
+// ════════════════════════════════════════════════════
+let G = null;
+let resolving = false;
+
+function mkState(){
+  return {
+    cp: 0, // current player (0=P1,1=P2)
+    players:[
+      {hp:20,mhp:20,mp:5,mmp:5,hand:[],bonus:0},
+      {hp:20,mhp:20,mp:5,mmp:5,hand:[],bonus:0},
+    ],
+    // board[pid][row][col], col0=back/front depends on side (see notes)
+    // P1: col0=back, col1=front(closer to divider)
+    // P2: col0=front(closer to divider), col1=back
+    board:[ [[null,null],[null,null],[null,null]], [[null,null],[null,null],[null,null]] ],
+    pool:[],
+    sel:null, // selected hand index
+    winner:null,
+  };
+}
+
+// ════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════
+function rndPick(arr){
+  if(!arr.length) return null;
+  const i = Math.floor(Math.random()*arr.length);
+  return arr.splice(i,1)[0];
+}
+function drawN(n, pool){
+  const out=[];
+  for(let i=0;i<n&&pool.length;i++) out.push(rndPick(pool));
+  return out;
+}
+
+function mkUnit(type, owner){
+  const d = DEFS[type];
+  return { type, hp:d.hp, mhp:d.hp, batk:d.atk, owner, resolved:0, dead:false };
+}
+
+function board(pid){ return G.board[pid]; }
+
+// Effective attack including boosts/curses
+function effAtk(unit){
+  let a = unit.batk;
+  // SupCard2 on owner's board → +1 each
+  board(unit.owner).forEach(r=>r.forEach(c=>{ if(c&&c.type==='SupCard2') a++; }));
+  // SupCard3 on opponent's board → -1 each
+  board(1-unit.owner).forEach(r=>r.forEach(c=>{ if(c&&c.type==='SupCard3') a--; }));
+  return Math.max(0,a);
+}
+
+// "front" col = closest to divider
+// P1 front=col1, P2 front=col0
+function frontFirst(pid){ return pid===0?[1,0]:[0,1]; }
+
+// Get targets in row (front to back) for given defender side
+function getTargets(pid, row){
+  const b = board(pid);
+  const out = [];
+  for(const c of frontFirst(pid)){
+    if(b[row][c]) out.push({r:row,c,unit:b[row][c]});
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════
+//  DAMAGE / DEATH
+// ════════════════════════════════════════════════════
+function dmgUnit(pid, r, c, dmg, srcUnit){
+  const b = board(pid);
+  const u = b[r][c];
+  if(!u||u.dead) return;
+  if(u.type==='DefCard1') return; // wall is immune to damage
+
+  u.hp -= dmg;
+  playSfx('hit_unit');
+  flashCell(pid,r,c);
+
+  if(u.hp<=0){
+    u.dead = true;
+    if(u.type==='DefCard3') triggerExplode(r);
+  }
+}
+
+function triggerExplode(row){
+  // Return all units in the row to the pool, then clear
+  for(let pid=0;pid<2;pid++)
+    for(let c=0;c<2;c++){
+      const u=G.board[pid][row][c];
+      if(u){ G.pool.push(u.type); G.board[pid][row][c]=null; }
+    }
+  flashRow(row);
+}
+
+function cleanDead(){
+  for(let pid=0;pid<2;pid++)
+    for(let r=0;r<3;r++)
+      for(let c=0;c<2;c++){
+        const u=G.board[pid][r][c];
+        if(u&&u.dead){ G.pool.push(u.type); G.board[pid][r][c]=null; }
+      }
+}
+
+// ════════════════════════════════════════════════════
+//  BOARD RESOLUTION
+// ════════════════════════════════════════════════════
+async function resolveBoard(){
+  resolving = true;
+  setStatus('Resolving board...');
+  disableEnd(true);
+
+  // Acting player goes first, then opponent — each side resolves row by row, left col then right col
+  const actingFirst = G.cp;
+  const order = [actingFirst, 1-actingFirst];
+
+  for(const pid of order){
+    for(let row=0;row<3;row++){
+      for(let c=0;c<2;c++){
+        const u = G.board[pid][row][c];
+        if(!u||u.dead) continue;
+        flashAct(pid,row,c);
+        await sleep(160);
+        await actUnit(u, pid, row, c);
+        cleanDead();
+        renderBoard(); renderStats();
+        if(checkWin()) return;
+        await sleep(180);
+      }
+    }
+  }
+
+  // Post-resolve: increment all unit resolved counters, expire walls
+  for(let pid=0;pid<2;pid++)
+    for(let r=0;r<3;r++)
+      for(let c=0;c<2;c++){
+        const u=G.board[pid][r][c];
+        if(!u) continue;
+        u.resolved++;
+        if(u.type==='DefCard1'&&u.resolved>=2){ G.pool.push(u.type); G.board[pid][r][c]=null; }
+      }
+
+  cleanDead();
+  renderAll();
+  resolving = false;
+
+  if(!checkWin()) switchPlayer();
+}
+
+async function actUnit(u, pid, row, col){
+  const d = DEFS[u.type];
+  const opp = 1-pid;
+  const atk = effAtk(u);
+
+  switch(d.effect){
+    case 'basic':{
+      if(atk<=0) break;
+      const tgts = getTargets(opp,row);
+      if(tgts.length){
+        dmgUnit(opp,tgts[0].r,tgts[0].c,atk,u);
+      } else {
+        G.players[opp].hp = Math.max(0,G.players[opp].hp-atk);
+        playSfx('hit_player');
+        flashHp(opp);
+      }
+      break;
+    }
+    case 'arch':{
+      if(atk<=0) break;
+      playSfx('lob');
+      setStatus(`Mage launches an arching bolt at Player ${opp+1}!`);
+      await sleep(420);
+      G.players[opp].hp = Math.max(0,G.players[opp].hp-atk);
+      playSfx('hit_player');
+      flashHp(opp);
+      break;
+    }
+    case 'pierce':{
+      if(atk<=0) break;
+      const tgts = getTargets(opp,row);
+      let hits=0;
+      for(const t of tgts){
+        const eff = Math.max(0,atk-hits);
+        if(eff<=0) break;
+        const tu = G.board[opp][t.r][t.c];
+        if(tu){ dmgUnit(opp,t.r,t.c,eff,u); hits++; renderBoard(); await sleep(130); }
+      }
+      const rem = Math.max(0,atk-hits);
+      if(rem>0){
+        G.players[opp].hp = Math.max(0,G.players[opp].hp-rem);
+        playSfx('hit_player');
+        flashHp(opp);
+      }
+      cleanDead();
+      break;
+    }
+    case 'wall':   break; // passive
+    case 'explode':break; // only triggers on death
+    case 'boost':  break; // passive aura
+    case 'curse':  break; // passive aura
+    case 'heal':{
+      G.players[pid].hp = Math.min(G.players[pid].mhp,G.players[pid].hp+2);
+      setStatus(`Healer restores 2 HP for Player ${pid+1}!`);
+      renderStats();
+      break;
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  TURN MANAGEMENT
+// ════════════════════════════════════════════════════
+function endTurn(){
+  if(resolving) return;
+  const p = G.players[G.cp];
+  // Replenish current player BEFORE resolve
+  const need = 4-p.hand.length+(p.bonus||0);
+  if(need>0) p.hand.push(...drawN(need,G.pool));
+  p.bonus = 0;
+  p.mp = p.mmp;
+  G.sel = null;
+  renderAll();
+  resolveBoard();
+}
+
+function switchPlayer(){
+  G.cp = 1-G.cp;
+  G.sel = null;
+  const pn = G.cp===0?'Player 1':'Player 2';
+  setStatus(`${pn}'s turn — place cards, then click End Turn`);
+  renderAll();
+  disableEnd(false);
+}
+
+// ════════════════════════════════════════════════════
+//  CARD PLACEMENT
+// ════════════════════════════════════════════════════
+function selectCard(pid, idx){
+  if(resolving||G.cp!==pid) return;
+  const ct = G.players[pid].hand[idx];
+  if(G.players[pid].mp < DEFS[ct].mana) return;
+  G.sel = G.sel===idx ? null : idx;
+  if(G.sel!==null) playSfx('select');
+  renderHands(); renderBoard();
+}
+
+function placeCard(pid, row, col){
+  if(resolving||G.cp!==pid||G.sel===null) return;
+  if(G.board[pid][row][col]) return;
+  const ct = G.players[pid].hand[G.sel];
+  const d = DEFS[ct];
+  if(G.players[pid].mp < d.mana) return;
+  G.board[pid][row][col] = mkUnit(ct, pid);
+  G.players[pid].mp -= d.mana;
+  G.players[pid].hand.splice(G.sel,1);
+  G.sel = null;
+  playSfx('place');
+  flashPop(pid,row,col);
+  renderAll();
+}
+
+// ════════════════════════════════════════════════════
+//  WIN CONDITION
+// ════════════════════════════════════════════════════
+function checkWin(){
+  let dead=-1;
+  if(G.players[0].hp<=0) dead=0;
+  if(G.players[1].hp<=0) dead=1;
+  if(dead===-1) return false;
+  const winner = 1-dead;
+  G.winner = winner;
+  stopBgm();
+  playSfx(winner===0?'win':'lose');
+  setTimeout(()=>showWin(winner),700);
+  return true;
+}
+
+function showWin(winner){
+  const h = document.getElementById('win-heading');
+  const s = document.getElementById('win-sub');
+  if(winner===0){
+    h.textContent='VICTORY'; h.style.color='var(--gold2)';
+    s.textContent='Player 1 reigns victorious';
+  } else {
+    h.textContent='DEFEAT'; h.style.color='var(--p2col)';
+    s.textContent='Player 2 claims the field';
+  }
+  document.getElementById('screen-win').classList.add('show');
+}
+
+// ════════════════════════════════════════════════════
+//  INIT / RESTART
+// ════════════════════════════════════════════════════
+function startGame(){
+  G = mkState();
+  G.pool = [...POOL_TEMPLATE];
+  G.players[0].hand = drawN(4,G.pool);
+  G.players[1].hand = drawN(4,G.pool);
+  document.getElementById('screen-title').style.display='none';
+  document.getElementById('screen-game').classList.add('show');
+  buildBoard();
+  renderAll();
+  playBgm();
+  setStatus("Player 1's turn — place cards, then click End Turn");
+  disableEnd(false);
+}
+
+function backToTitle(){
+  stopBgm();
+  document.getElementById('screen-win').classList.remove('show');
+  document.getElementById('screen-game').classList.remove('show');
+  document.getElementById('screen-title').style.display='';
+  resolving=false; G=null;
+}
+
+// ════════════════════════════════════════════════════
+//  BUILD DOM BOARD
+// ════════════════════════════════════════════════════
+function buildBoard(){
+  const wrap = document.getElementById('board-wrap');
+  wrap.innerHTML='';
+  for(let row=0;row<3;row++){
+    const rowEl = document.createElement('div');
+    rowEl.className='brow'; rowEl.id=`brow-${row}`;
+    // P1 col0, P1 col1, divider, P2 col0, P2 col1
+    for(let c=0;c<2;c++){
+      const cell=document.createElement('div');
+      cell.className='cell p1s'; cell.id=`cell-0-${row}-${c}`;
+      cell.onclick=()=>placeCard(0,row,c);
+      rowEl.appendChild(cell);
+    }
+    const div=document.createElement('div'); div.className='bdiv';
+    rowEl.appendChild(div);
+    for(let c=0;c<2;c++){
+      const cell=document.createElement('div');
+      cell.className='cell p2s'; cell.id=`cell-1-${row}-${c}`;
+      cell.onclick=()=>placeCard(1,row,c);
+      rowEl.appendChild(cell);
+    }
+    wrap.appendChild(rowEl);
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════
+function renderAll(){ renderStats(); renderHands(); renderBoard(); renderBadge(); }
+
+function renderStats(){
+  if(!G) return;
+  for(let pid=0;pid<2;pid++){
+    const p=G.players[pid], pf=pid===0?'p1':'p2';
+    const hpPct=Math.max(0,p.hp/p.mhp*100).toFixed(1);
+    const mpPct=(p.mp/p.mmp*100).toFixed(1);
+    document.getElementById(`${pf}-hp-bar`).style.width=hpPct+'%';
+    document.getElementById(`${pf}-hp-val`).textContent=`${Math.max(0,p.hp)}/${p.mhp}`;
+    document.getElementById(`${pf}-mp-bar`).style.width=mpPct+'%';
+    document.getElementById(`${pf}-mp-val`).textContent=`${p.mp}/${p.mmp}`;
+  }
+}
+
+function renderHands(){
+  if(!G) return;
+  for(let pid=0;pid<2;pid++){
+    const hEl=document.getElementById(`hand-p${pid+1}`);
+    hEl.innerHTML='';
+    const p=G.players[pid];
+    const active=G.cp===pid&&!resolving;
+    p.hand.forEach((ct,i)=>{
+      const d=DEFS[ct];
+      const cantAfford=p.mp<d.mana;
+      const selected=G.sel===i&&G.cp===pid;
+      const div=document.createElement('div');
+      div.className='hcard'+(selected?' sel':'')+((!active||cantAfford)?' na':'');
+      if(active&&!cantAfford) div.onclick=()=>selectCard(pid,i);
+      div.innerHTML=`
+        <img class="hci" src="assets/sprites/${ct}.png" alt="${d.name}"
+             onerror="this.style.opacity='0.3'">
+        <div class="hct">
+          <div class="hcname">${d.name}</div>
+          <div class="hcdesc">${d.desc}</div>
+        </div>
+        <div class="hccost">${d.mana}</div>`;
+      hEl.appendChild(div);
+    });
+  }
+}
+
+function renderBoard(){
+  if(!G) return;
+  for(let pid=0;pid<2;pid++){
+    for(let row=0;row<3;row++){
+      for(let col=0;col<2;col++){
+        const cell=document.getElementById(`cell-${pid}-${row}-${col}`);
+        if(!cell) continue;
+        const u=G.board[pid][row][col];
+        const selOk=G.cp===pid&&G.sel!==null&&!u&&!resolving;
+        cell.classList.toggle('can',selOk);
+
+        if(u){
+          const d=DEFS[u.type];
+          const isWall=u.type==='DefCard1';
+          const hpPct=isWall?100:(u.hp/u.mhp*100);
+          const hpCls=hpPct<30?'uhpfill low':hpPct<60?'uhpfill mid':'uhpfill';
+          const ea=effAtk(u); const diff=ea-u.batk;
+          const badge=diff!==0?`<div class="ubadge">${diff>0?'+'+diff:diff}</div>`:'';
+          const hpTxt=isWall?'∞':u.hp;
+          cell.innerHTML=`
+            <div class="unit">
+              <img class="uimg" src="assets/sprites/${u.type}.png" alt="${d.name}"
+                   onerror="this.style.opacity='0.3'">
+              ${badge}
+              <div class="uhptxt">${hpTxt}</div>
+              ${!isWall?`<div class="uhpbar"><div class="${hpCls}" style="width:${hpPct}%"></div></div>`:''}
+            </div>`;
+        } else {
+          cell.innerHTML='';
+        }
+      }
+    }
+  }
+}
+
+function renderBadge(){
+  if(!G) return;
+  const b=document.getElementById('turn-badge');
+  if(G.cp===0){
+    b.textContent="PLAYER 1'S TURN";
+    b.style.color='var(--p1col)'; b.style.borderColor='var(--p1col)';
+  } else {
+    b.textContent="PLAYER 2'S TURN";
+    b.style.color='var(--p2col)'; b.style.borderColor='var(--p2col)';
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  VISUAL FX
+// ════════════════════════════════════════════════════
+function flashAct(pid,row,col){
+  const el=document.getElementById(`cell-${pid}-${row}-${col}`);
+  if(!el) return;
+  el.classList.remove('fact'); void el.offsetWidth;
+  el.classList.add('fact'); setTimeout(()=>el.classList.remove('fact'),460);
+}
+function flashCell(pid,row,col){
+  const el=document.getElementById(`cell-${pid}-${row}-${col}`);
+  if(!el) return;
+  el.classList.remove('fdmg'); void el.offsetWidth;
+  el.classList.add('fdmg'); setTimeout(()=>el.classList.remove('fdmg'),400);
+}
+function flashRow(row){
+  for(let p=0;p<2;p++) for(let c=0;c<2;c++){
+    const el=document.getElementById(`cell-${p}-${row}-${c}`);
+    if(!el) continue;
+    el.classList.remove('fxplode'); void el.offsetWidth;
+    el.classList.add('fxplode'); setTimeout(()=>el.classList.remove('fxplode'),600);
+  }
+}
+function flashHp(pid){
+  const el=document.getElementById(pid===0?'side-p1':'side-p2');
+  if(!el) return;
+  el.classList.remove('fhp'); void el.offsetWidth;
+  el.classList.add('fhp'); setTimeout(()=>el.classList.remove('fhp'),350);
+}
+function flashPop(pid,row,col){
+  const el=document.getElementById(`cell-${pid}-${row}-${col}`);
+  if(!el) return;
+  el.classList.remove('fpop'); void el.offsetWidth;
+  el.classList.add('fpop'); setTimeout(()=>el.classList.remove('fpop'),400);
+}
+
+function setStatus(msg){ const e=document.getElementById('status'); if(e) e.textContent=msg; }
+function disableEnd(v){ const e=document.getElementById('btn-end'); if(e) e.disabled=v; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ════════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{ initAudio(); });
+</script>
+</body>
+</html>
