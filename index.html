@@ -272,12 +272,19 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 @keyframes placePop{0%{transform:scale(.45);opacity:0}65%{transform:scale(1.1);opacity:1}100%{transform:scale(1);opacity:1}}
 @keyframes explodeFlash{0%{background:rgba(255,90,0,.5);box-shadow:inset 0 0 20px rgba(255,90,0,.7)}100%{background:var(--panel2);box-shadow:none}}
 @keyframes hpShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes deleteShake{0%,100%{transform:translateX(0)}18%{transform:translateX(-5px)}36%{transform:translateX(5px)}54%{transform:translateX(-4px)}72%{transform:translateX(4px)}90%{transform:translateX(-2px)}}
 
 .fdmg{animation:flashDmg .38s ease-out}
 .fact{animation:flashAct .45s ease-out}
 .fpop .unit{animation:placePop .28s ease-out}
 .fxplode{animation:explodeFlash .55s ease-out}
 .fhp{animation:hpShake .3s ease-out}
+.cell.pending-del{
+  background:rgba(180,0,0,.22)!important;
+  border-color:#e53935!important;
+  box-shadow:inset 0 0 14px rgba(220,0,0,.35);
+}
+.cell.pending-del .unit{animation:deleteShake .5s ease-out;filter:sepia(1) saturate(3) hue-rotate(-20deg) brightness(.9);}
 
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-track{background:var(--panel)}
@@ -431,6 +438,7 @@ function mkState(){
     // P2: col0=front(closer to divider), col1=back
     board:[ [[null,null],[null,null],[null,null]], [[null,null],[null,null],[null,null]] ],
     sel:null,
+    deleteTarget: null, // {pid,row,col} of unit pending deletion
     winner:null,
     roundStarter: 0,    // who opens each round; flips after every resolve
     placementPhase: 0,  // 0 = first placer's turn, 1 = second placer's turn
@@ -694,9 +702,41 @@ function placeCard(pid, row, col){
   renderAll();
 }
 
-// ════════════════════════════════════════════════════
-//  WIN CONDITION
-// ════════════════════════════════════════════════════
+function cellClick(pid, row, col){
+  if(resolving) return;
+
+  const u = G.board[pid][row][col];
+  const dt = G.deleteTarget;
+
+  // ── Second click on same pending-delete unit → confirm delete
+  if(dt && dt.pid===pid && dt.row===row && dt.col===col){
+    G.players[u.owner].pool.push(u.type);
+    G.board[pid][row][col] = null;
+    G.deleteTarget = null;
+    playSfx('hit_unit');
+    renderBoard();
+    return;
+  }
+
+  // ── Click on an occupied cell belonging to current player → start delete
+  if(u && u.owner === G.cp){
+    cancelDelete();          // clear any previous pending
+    G.deleteTarget = {pid, row, col};
+    playSfx('select');
+    renderBoard();
+    return;
+  }
+
+  // ── Empty cell — attempt placement (also clears any pending delete)
+  cancelDelete();
+  placeCard(pid, row, col);
+}
+
+function cancelDelete(){
+  if(!G || !G.deleteTarget) return;
+  G.deleteTarget = null;
+  renderBoard();
+}
 function checkWin(){
   let dead=-1;
   if(G.players[0].hp<=0) dead=0;
@@ -762,7 +802,7 @@ function buildBoard(){
     for(let c=0;c<2;c++){
       const cell=document.createElement('div');
       cell.className='cell p1s'; cell.id=`cell-0-${row}-${c}`;
-      cell.onclick=()=>placeCard(0,row,c);
+      cell.onclick=(e)=>{e.stopPropagation();cellClick(0,row,c);};
       rowEl.appendChild(cell);
     }
     const div=document.createElement('div'); div.className='bdiv';
@@ -770,7 +810,7 @@ function buildBoard(){
     for(let c=0;c<2;c++){
       const cell=document.createElement('div');
       cell.className='cell p2s'; cell.id=`cell-1-${row}-${c}`;
-      cell.onclick=()=>placeCard(1,row,c);
+      cell.onclick=(e)=>{e.stopPropagation();cellClick(1,row,c);};
       rowEl.appendChild(cell);
     }
     wrap.appendChild(rowEl);
@@ -833,6 +873,8 @@ function renderBoard(){
         const u=G.board[pid][row][col];
         const selOk=G.cp===pid&&G.sel!==null&&!u&&!resolving;
         cell.classList.toggle('can',selOk);
+        const dt=G.deleteTarget;
+        cell.classList.toggle('pending-del', !!(dt&&dt.pid===pid&&dt.row===row&&dt.col===col));
 
         if(u){
           const d=DEFS[u.type];
@@ -969,7 +1011,10 @@ document.addEventListener('mousemove', e=>{
 // ════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded',()=>{ initAudio(); });
+window.addEventListener('DOMContentLoaded',()=>{
+  initAudio();
+  document.addEventListener('click', ()=>{ if(G) cancelDelete(); });
+});
 </script>
 </body>
 </html>
