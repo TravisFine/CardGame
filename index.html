@@ -375,7 +375,7 @@ const DEFS = {
   DefCard1:{ name:'Wall',      mana:2, hp:999, atk:0, effect:'wall',    desc:'∞hp — Absorbs all hits; vanishes after 1 round' },
   DefCard2:{ name:'Tough Guy', mana:2, hp:4,   atk:1, effect:'basic',   desc:'4hp · 1atk — Attacks ahead' },
   DefCard3:{ name:'Bomber',    mana:2, hp:2,   atk:0, effect:'explode', desc:'2hp — Explodes on death, clears entire row' },
-  SupCard1:{ name:'Priest',    mana:2, hp:2,   atk:0, effect:'heal',    desc:'2hp — Restores 2hp to your player each turn' },
+  SupCard1:{ name:'Priest',    mana:3, hp:2,   atk:0, effect:'heal',    desc:'2hp — Restores 2hp to your player each turn' },
   SupCard2:{ name:'Coach',     mana:3, hp:2,   atk:0, effect:'boost',   desc:'2hp — All your units gain +1 attack' },
   SupCard3:{ name:'Malice',    mana:2, hp:1,   atk:0, effect:'curse',   desc:'1hp — All enemy units suffer -1 attack' },
 };
@@ -423,14 +423,13 @@ function mkState(){
   return {
     cp: 0, // current player (0=P1,1=P2)
     players:[
-      {hp:20,mhp:20,mp:5,mmp:5,hand:[],bonus:0},
-      {hp:20,mhp:20,mp:5,mmp:5,hand:[],bonus:0},
+      {hp:12,mhp:12,mp:5,mmp:5,hand:[],pool:[],bonus:0},
+      {hp:12,mhp:12,mp:5,mmp:5,hand:[],pool:[],bonus:0},
     ],
     // board[pid][row][col], col0=back/front depends on side (see notes)
     // P1: col0=back, col1=front(closer to divider)
     // P2: col0=front(closer to divider), col1=back
     board:[ [[null,null],[null,null],[null,null]], [[null,null],[null,null],[null,null]] ],
-    pool:[],
     sel:null,
     winner:null,
     roundStarter: 0,    // who opens each round; flips after every resolve
@@ -503,11 +502,10 @@ function dmgUnit(pid, r, c, dmg, srcUnit){
 }
 
 function triggerExplode(row){
-  // Return all units in the row to the pool, then clear
   for(let pid=0;pid<2;pid++)
     for(let c=0;c<2;c++){
       const u=G.board[pid][row][c];
-      if(u){ G.pool.push(u.type); G.board[pid][row][c]=null; }
+      if(u){ G.players[u.owner].pool.push(u.type); G.board[pid][row][c]=null; }
     }
   flashRow(row);
 }
@@ -517,7 +515,7 @@ function cleanDead(){
     for(let r=0;r<3;r++)
       for(let c=0;c<2;c++){
         const u=G.board[pid][r][c];
-        if(u&&u.dead){ G.pool.push(u.type); G.board[pid][r][c]=null; }
+        if(u&&u.dead){ G.players[u.owner].pool.push(u.type); G.board[pid][r][c]=null; }
       }
 }
 
@@ -556,7 +554,7 @@ async function resolveBoard(){
         const u=G.board[pid][r][c];
         if(!u) continue;
         u.resolved++;
-        if(u.type==='DefCard1'&&u.resolved>=2){ G.pool.push(u.type); G.board[pid][r][c]=null; }
+        if(u.type==='DefCard1'&&u.resolved>=2){ G.players[u.owner].pool.push(u.type); G.board[pid][r][c]=null; }
       }
 
   cleanDead();
@@ -657,10 +655,10 @@ function switchPlayer(){
   // If placementPhase is 0 we just came out of resolve, go to next roundStarter
   G.cp = G.placementPhase === 1 ? 1 - G.roundStarter : G.roundStarter;
   G.sel = null;
-  // Replenish incoming player's hand — after resolve dead cards are back in pool
+  // Replenish incoming player's hand — after resolve dead cards are back in their pool
   const p = G.players[G.cp];
   const need = 4 - p.hand.length + (p.bonus||0);
-  if(need > 0) p.hand.push(...drawN(need, G.pool));
+  if(need > 0) p.hand.push(...drawN(need, p.pool));
   p.bonus = 0;
   const pn = G.cp===0?'Player 1':'Player 2';
   const phase = G.placementPhase === 1 ? '(2nd placement)' : '(1st placement)';
@@ -730,9 +728,10 @@ function showWin(winner){
 // ════════════════════════════════════════════════════
 function startGame(){
   G = mkState();
-  G.pool = [...POOL_TEMPLATE];
-  G.players[0].hand = drawN(4,G.pool);
-  G.players[1].hand = drawN(4,G.pool);
+  G.players[0].pool = [...POOL_TEMPLATE];
+  G.players[1].pool = [...POOL_TEMPLATE];
+  G.players[0].hand = drawN(4, G.players[0].pool);
+  G.players[1].hand = drawN(4, G.players[1].pool);
   document.getElementById('screen-title').style.display='none';
   document.getElementById('screen-game').classList.add('show');
   buildBoard();
