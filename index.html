@@ -425,6 +425,7 @@ function stopBgm(){ bgm && bgm.pause(); bgm && (bgm.currentTime=0); }
 // ════════════════════════════════════════════════════
 let G = null;
 let resolving = false;
+let nextGameStarter = 0; // 0 = P1 starts first game, flips each new game
 
 function mkState(){
   return {
@@ -653,7 +654,6 @@ function endTurn(){
   } else {
     // Both players have placed — resolve then start next round
     G.placementPhase = 0;
-    G.roundStarter = 1 - G.roundStarter; // alternate who opens next round
     resolveBoard();
   }
 }
@@ -668,18 +668,24 @@ function switchPlayer(){
   const need = 4 - p.hand.length + (p.bonus||0);
   if(need > 0) p.hand.push(...drawN(need, p.pool));
   p.bonus = 0;
-  const pn = G.cp===0?'Player 1':'Player 2';
-  const phase = G.placementPhase === 1 ? '(2nd placement)' : '(1st placement)';
-  setStatus(`${pn}'s turn ${phase} — place cards, then click End Turn`);
+  const pn = G.cp===0?'Player 1':'Opponent';
+  const hint = G.cp===0 ? 'place cards, then click End Turn' : 'thinking...';
+  setStatus(`${pn}'s turn — ${hint}`);
   renderAll();
   disableEnd(false);
+
+  // AI takes over when it's Player 2's turn
+  if (G.cp === AI_PID) {
+    disableEnd(true);
+    setTimeout(aiTakeTurn, 600);
+  }
 }
 
 // ════════════════════════════════════════════════════
 //  CARD PLACEMENT
 // ════════════════════════════════════════════════════
 function selectCard(pid, idx){
-  if(resolving||G.cp!==pid) return;
+  if(resolving||G.cp!==pid||pid===1) return; // pid 1 is AI-controlled
   const ct = G.players[pid].hand[idx];
   if(G.players[pid].mp < DEFS[ct].mana) return;
   G.sel = G.sel===idx ? null : idx;
@@ -703,7 +709,7 @@ function placeCard(pid, row, col){
 }
 
 function cellClick(pid, row, col){
-  if(resolving) return;
+  if(resolving||pid===1) return; // P2's side is AI-controlled
 
   const u = G.board[pid][row][col];
   const dt = G.deleteTarget;
@@ -746,6 +752,7 @@ function checkWin(){
   G.winner = winner;
   stopBgm();
   playSfx(winner===0?'win':'lose');
+  nextGameStarter = 1 - nextGameStarter; // next game starts with the other player
   setTimeout(()=>showWin(winner),700);
   return true;
 }
@@ -768,6 +775,8 @@ function showWin(winner){
 // ════════════════════════════════════════════════════
 function startGame(){
   G = mkState();
+  G.roundStarter = nextGameStarter;
+  G.cp = nextGameStarter;
   G.players[0].pool = [...POOL_TEMPLATE];
   G.players[1].pool = [...POOL_TEMPLATE];
   G.players[0].hand = drawN(4, G.players[0].pool);
@@ -777,8 +786,14 @@ function startGame(){
   buildBoard();
   renderAll();
   playBgm();
-  setStatus("Player 1's turn (1st placement) — place cards, then click End Turn");
-  disableEnd(false);
+  if(nextGameStarter === 0){
+    setStatus("Player 1's turn — place cards, then click End Turn");
+    disableEnd(false);
+  } else {
+    setStatus("Opponent's turn — thinking...");
+    disableEnd(true);
+    setTimeout(aiTakeTurn, 600);
+  }
 }
 
 function backToTitle(){
@@ -908,12 +923,11 @@ function renderBoard(){
 function renderBadge(){
   if(!G) return;
   const b=document.getElementById('turn-badge');
-  const phase = G.placementPhase === 0 ? ' · 1ST' : ' · 2ND';
   if(G.cp===0){
-    b.textContent=`PLAYER 1'S TURN${phase}`;
+    b.textContent=`PLAYER 1'S TURN`;
     b.style.color='var(--p1col)'; b.style.borderColor='var(--p1col)';
   } else {
-    b.textContent=`PLAYER 2'S TURN${phase}`;
+    b.textContent=`OPPONENT'S TURN`;
     b.style.color='var(--p2col)'; b.style.borderColor='var(--p2col)';
   }
 }
@@ -1016,5 +1030,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   document.addEventListener('click', ()=>{ if(G) cancelDelete(); });
 });
 </script>
+<script src="Opponent_AI.js"></script>
 </body>
 </html>
