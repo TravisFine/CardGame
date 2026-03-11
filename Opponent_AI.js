@@ -302,21 +302,52 @@ function aiScore(sim) {
   // ── HP difference — most important factor
   score += (ai.hp - hu.hp) * 4;
 
-  // ── Board presence per row
+  // ── Count combat units on each side (excludes support cards)
+  //    Used to gate whether support cards are actually useful
+  const SUPPORT_TYPES = new Set(['SupCard1', 'SupCard2', 'SupCard3']);
+  let aiCombatCount = 0;
+  let huCombatCount = 0;
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 2; c++) {
+      const au  = sim.board[AI_PID][r][c];
+      const hu2 = sim.board[HU_PID][r][c];
+      if (au  && !SUPPORT_TYPES.has(au.type))  aiCombatCount++;
+      if (hu2 && !SUPPORT_TYPES.has(hu2.type)) huCombatCount++;
+    }
+
+  // ── Per-row lane analysis
+  //    Threat = attack weighted by remaining HP ratio — a dying card is less dangerous
+  const huLaneThreat  = [0, 0, 0];
+  const aiLaneStrength = [0, 0, 0];
+
   for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 2; col++) {
+      const au  = sim.board[AI_PID][row][col];
+      const hu2 = sim.board[HU_PID][row][col];
+
+      if (au) {
+        const hpRatio = au.mhp > 0 ? au.hp / au.mhp : 0;
+        aiLaneStrength[row] += aiEffAtk(sim, au) * hpRatio + au.hp * 0.3;
+      }
+      if (hu2) {
+        const hpRatio = hu2.mhp > 0 ? hu2.hp / hu2.mhp : 0;
+        huLaneThreat[row] += aiEffAtk(sim, hu2) * hpRatio + hu2.hp * 0.3;
+      }
+    }
+
     const aiHasCard = sim.board[AI_PID][row].some(c => c !== null);
     const huHasCard = sim.board[HU_PID][row].some(c => c !== null);
 
-    // AI has a card in a row the human left undefended = direct damage threat
+    // AI threatens an open lane — good
     if (aiHasCard && !huHasCard) score += 3;
 
-    // AI has defense in a row where human is attacking
+    // AI is covering a lane the human is pushing — good
     if (huHasCard && aiHasCard) score += 2;
 
-    // Human has an undefended row that can hit AI directly — bad
-    if (huHasCard && !aiHasCard) score -= 3;
+    // Human has an open lane hitting AI directly — penalize by actual threat level
+    if (huHasCard && !aiHasCard) score -= 3 + huLaneThreat[row];
 
-    // Bonus for card quality (mana cost as proxy for power)
+    // Reward card quality via mana cost as proxy for power
     for (let col = 0; col < 2; col++) {
       const aiCard = sim.board[AI_PID][row][col];
       const huCard = sim.board[HU_PID][row][col];
@@ -325,16 +356,39 @@ function aiScore(sim) {
     }
   }
 
-  // ── Special card bonuses
+  // ── Respond to the player's most dangerous lane
+  //    Find where the human is strongest and reward AI for having presence there
+  let maxHuThreat = 0;
+  let dangerRow   = -1;
+  for (let row = 0; row < 3; row++) {
+    if (huLaneThreat[row] > maxHuThreat) {
+      maxHuThreat = huLaneThreat[row];
+      dangerRow   = row;
+    }
+  }
+  if (dangerRow >= 0 && sim.board[AI_PID][dangerRow].some(c => c !== null))
+    score += 4; // bonus for actively contesting the human's strongest lane
+
+  // ── Support card context — only valuable when they have something to support
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 2; col++) {
       const u = sim.board[AI_PID][row][col];
       if (!u) continue;
-      if (u.type === 'SupCard1') score += 3;  // Priest healing every turn
-      if (u.type === 'SupCard2') score += 3;  // Coach boosting all units
-      if (u.type === 'SupCard3') score += 2;  // Malice cursing enemy
-      if (u.type === 'AtkCard3') score += 2;  // Mage bypasses — always threatens player
-      if (u.type === 'DefCard1') score += 2;  // Wall blocking a row
+
+      // Priest: worth protecting only if there's a frontline to keep alive
+      if (u.type === 'SupCard1') score += aiCombatCount > 0 ? 4 : -2;
+
+      // Coach: +1 atk to all units — scales with how many units benefit
+      if (u.type === 'SupCard2') score += aiCombatCount > 0 ? 3 + aiCombatCount : -3;
+
+      // Malice: curses enemy units — useless if enemy has none
+      if (u.type === 'SupCard3') score += huCombatCount > 0 ? 2 + huCombatCount * 0.5 : -2;
+
+      // Mage: always bypasses to player — always useful offensively
+      if (u.type === 'AtkCard3') score += 2;
+
+      // Wall: most valuable blocking a lane with high human threat
+      if (u.type === 'DefCard1') score += 2 + huLaneThreat[row] * 0.5;
     }
   }
 
