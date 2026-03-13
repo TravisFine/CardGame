@@ -1,4 +1,4 @@
-// ════════════════════════════════════════════════════
+/ ════════════════════════════════════════════════════
 //  AI OPPONENT  (Player 2)
 //  Stephan — AI implementation for Card Battle
 //
@@ -85,13 +85,21 @@ function aiGenerateMoves() {
     .map((ct, i) => ({ handIndex: i, ct, cost: DEFS[ct].mana }))
     .filter(c => c.cost <= mp);
 
-  const results = [];
-  results.push([]); // always include the "pass" move
+  // Build two lists simultaneously:
+  //   allResults  — every possible move including lonely-support ones (fallback)
+  //   safeResults — filtered: no support cards placed without combat units present
+  const allResults  = [[]]; // always include the "pass" move
+  const safeResults = [[]];
+
+  const addMove = (move) => {
+    allResults.push(move);
+    if (isMoveValid(move)) safeResults.push(move);
+  };
 
   // Single placements
   for (const card of affordable) {
     for (const cell of emptyCells) {
-      results.push([{ handIndex: card.handIndex, row: cell.row, col: cell.col }]);
+      addMove([{ handIndex: card.handIndex, row: cell.row, col: cell.col }]);
     }
   }
 
@@ -102,7 +110,7 @@ function aiGenerateMoves() {
       for (let ci = 0; ci < emptyCells.length; ci++) {
         for (let cj = 0; cj < emptyCells.length; cj++) {
           if (ci === cj) continue;
-          results.push([
+          addMove([
             { handIndex: affordable[i].handIndex, row: emptyCells[ci].row, col: emptyCells[ci].col },
             { handIndex: affordable[j].handIndex, row: emptyCells[cj].row, col: emptyCells[cj].col },
           ]);
@@ -120,7 +128,7 @@ function aiGenerateMoves() {
           for (let cj = 0; cj < emptyCells.length; cj++) {
             for (let ck = 0; ck < emptyCells.length; ck++) {
               if (ci === cj || ci === ck || cj === ck) continue;
-              results.push([
+              addMove([
                 { handIndex: affordable[i].handIndex, row: emptyCells[ci].row, col: emptyCells[ci].col },
                 { handIndex: affordable[j].handIndex, row: emptyCells[cj].row, col: emptyCells[cj].col },
                 { handIndex: affordable[k].handIndex, row: emptyCells[ck].row, col: emptyCells[ck].col },
@@ -132,7 +140,39 @@ function aiGenerateMoves() {
     }
   }
 
-  return results;
+  // Prefer safe moves; fall back to all moves if hand is all support cards
+  return safeResults.length > 1 ? safeResults : allResults;
+}
+
+// ────────────────────────────────────────────────────
+//  MOVE VALIDATOR
+//  Returns false if a move would place support cards
+//  with no combat units to support (on board or in move).
+//  This prevents wasted turns like Priest with no frontline.
+// ────────────────────────────────────────────────────
+function isMoveValid(move) {
+  const SUPPORT_TYPES = new Set(['SupCard1', 'SupCard2', 'SupCard3']);
+
+  // Count existing combat units already on the AI's board
+  let existingCombat = 0;
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 2; c++) {
+      const u = G.board[AI_PID][r][c];
+      if (u && !SUPPORT_TYPES.has(u.type)) existingCombat++;
+    }
+
+  // Count what this move is placing
+  let moveCombat  = 0;
+  let moveSupport = 0;
+  for (const placement of move) {
+    const ct = G.players[AI_PID].hand[placement.handIndex];
+    if (SUPPORT_TYPES.has(ct)) moveSupport++;
+    else moveCombat++;
+  }
+
+  // Invalid only if placing support with zero combat anywhere
+  if (moveSupport > 0 && existingCombat + moveCombat === 0) return false;
+  return true;
 }
 
 // ────────────────────────────────────────────────────
